@@ -12,6 +12,20 @@ jobs:
   acceptance-test:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
     steps:
     - uses: actions/checkout@v2
 
@@ -24,10 +38,13 @@ jobs:
       run: mvn -B package --file pom.xml
 
     - name: Start the application
-      run: mvn exec:java -Dexec.mainClass="Main"
+      run: mvn spring-boot:run &
 
     - name: Wait for application to start
-      run: sleep 30s
+      run: |
+        retries=30
+        until curl --output /dev/null --silent --head --fail http://localhost:8080/actuator/health || [ $retries -eq 0 ]
+        sleep 5s
 
-    - name: Run Acceptance Tests with Maven
+    - name: Run Acceptance Tests with Cucumber
       run: mvn verify -P acceptance-tests
